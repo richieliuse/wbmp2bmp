@@ -99,7 +99,6 @@ unsigned long convertWbmp2bmp(const Byte *wbmpBytes, Byte *bmpBytes, unsigned lo
     };
     
     NSUInteger wbmpWidth, wbmpHeight, wbmpBytesPerLine, bmpBytesPerLine, bmpFileSize;
-    Byte *p,*p1;
     wbmpWidth = wbmpBytes[2];
     wbmpHeight = wbmpBytes[3];
     wbmpBytesPerLine = (NSUInteger)((wbmpWidth + 7) / 8);
