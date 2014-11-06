@@ -8,8 +8,14 @@
 
 #import "WBMPHelper.h"
 
-unsigned long convertWbmp2bmp(const Byte *wbmpBytes, Byte *bmpBytes, unsigned long scale) {
-    unsigned long headerSize = 54 + 256 * 4;
+const unsigned long commonHeaderSize = 54 + 256 * 4;
+const unsigned long miniHeaderSize = 54 + 2 * 4;
+const unsigned long wbmpHeaderSize = 4;
+
+unsigned long convertWbmp2ScaledBmp(const Byte *wbmpBytes, Byte *bmpBytes, unsigned long scale) {
+    if (scale == 0 || wbmpBytes == NULL || bmpBytes == NULL) {
+        return 0;
+    }
     
     unsigned long wbmpWidth = (unsigned long)wbmpBytes[2];
     unsigned long wbmpHeight = (unsigned long)wbmpBytes[3];
@@ -18,9 +24,9 @@ unsigned long convertWbmp2bmp(const Byte *wbmpBytes, Byte *bmpBytes, unsigned lo
     unsigned long bmpWidth = wbmpWidth * scale;
     unsigned long bmpHeight = wbmpHeight * scale;
     unsigned long bmpBytesPerLine = (((bmpWidth * 8) + 31) >> 5) << 2;
-    unsigned long bmpFileSize = bmpBytesPerLine * bmpHeight + headerSize;
+    unsigned long bmpFileSize = bmpBytesPerLine * bmpHeight + commonHeaderSize;
     
-    Byte header[1078] = {0};
+    Byte header[commonHeaderSize] = { 0 };
     //  文件类型
     header[0] = 0x42;
     header[1] = 0x4d;
@@ -58,10 +64,10 @@ unsigned long convertWbmp2bmp(const Byte *wbmpBytes, Byte *bmpBytes, unsigned lo
     header[60] = 0xff;
     
     Byte *bmpBytesPointer = bmpBytes;
-    memcpy(bmpBytesPointer, (Byte *)&header, sizeof(header));
-    bmpBytesPointer += sizeof(header);
+    memcpy(bmpBytesPointer, (Byte *)&header, commonHeaderSize);
+    bmpBytesPointer += commonHeaderSize;
     
-    const Byte *wbmpBytesPointer = wbmpBytes + 4;
+    const Byte *wbmpBytesPointer = wbmpBytes + wbmpHeaderSize;
     
     for (unsigned long h = 0; h < bmpHeight; h++) {
         for (unsigned long w = 0; w < bmpWidth; ++w) {
@@ -75,10 +81,12 @@ unsigned long convertWbmp2bmp(const Byte *wbmpBytes, Byte *bmpBytes, unsigned lo
     return bmpFileSize;
 }
 
-@implementation WBMPHelper
-
-+ (NSUInteger)convertWBMP:(const Byte *)wbmpBytes toBMP:(Byte *)bmpBytes {
-    Byte header[62] = {
+unsigned long convertWbmp2Bmp(const Byte *wbmpBytes, Byte *bmpBytes) {
+    if (wbmpBytes == NULL || bmpBytes == NULL) {
+        return 0;
+    }
+    
+    Byte header[miniHeaderSize] = {
         0x42, 0x4d,     //  文件类型
         0, 0, 0, 0,     //  位图大小
         0, 0,           //  保留
@@ -95,15 +103,15 @@ unsigned long convertWbmp2bmp(const Byte *wbmpBytes, Byte *bmpBytes, unsigned lo
         0, 0, 0, 0,     //  垂直分辨率
         0, 0, 0, 0,     //  图像实际使用的颜色索引数
         0, 0, 0, 0,     //  对图像重要的颜色索引数
-        0x00,0x00,0x00,0x00,0xFF,0xFF,0xFF,0x00 //  调色板
+        0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0x00 //  调色板
     };
     
-    NSUInteger wbmpWidth, wbmpHeight, wbmpBytesPerLine, bmpBytesPerLine, bmpFileSize;
+    unsigned long wbmpWidth, wbmpHeight, wbmpBytesPerLine, bmpBytesPerLine, bmpFileSize;
     wbmpWidth = wbmpBytes[2];
     wbmpHeight = wbmpBytes[3];
-    wbmpBytesPerLine = (NSUInteger)((wbmpWidth + 7) / 8);
-    bmpBytesPerLine =  ((NSUInteger)((wbmpBytesPerLine + 3) /4)) * 4;
-    bmpFileSize = bmpBytesPerLine * wbmpHeight + 62;
+    wbmpBytesPerLine = (unsigned long)((wbmpWidth + 7) / 8);
+    bmpBytesPerLine =  ((unsigned long)((wbmpBytesPerLine + 3) / 4)) * 4;
+    bmpFileSize = bmpBytesPerLine * wbmpHeight + miniHeaderSize;
     
     header[2] = (Byte)bmpFileSize;
     header[3] = (Byte)(bmpFileSize >> 8);
@@ -119,22 +127,26 @@ unsigned long convertWbmp2bmp(const Byte *wbmpBytes, Byte *bmpBytes, unsigned lo
     header[25] = (Byte)(wbmpHeight >> 24);
     
     Byte *bmpBytesPointer = bmpBytes;
-    memcpy(bmpBytesPointer,(Byte *)&header,sizeof(header));
-    bmpBytesPointer += sizeof(header);
+    memcpy(bmpBytesPointer, (Byte *)&header, miniHeaderSize);
+    bmpBytesPointer += miniHeaderSize;
     
-    const Byte *wbmpBytesPointer = wbmpBytes + 4;
+    const Byte *wbmpBytesPointer = wbmpBytes + wbmpHeaderSize;
     
-    for(NSUInteger h = 0; h < wbmpHeight; h++)
-    {
-        memcpy(bmpBytesPointer,wbmpBytesPointer + wbmpBytesPerLine * (wbmpHeight - h -1), wbmpBytesPerLine);
+    for (unsigned long h = 0; h < wbmpHeight; h++) {
+        memcpy(bmpBytesPointer, wbmpBytesPointer + wbmpBytesPerLine * (wbmpHeight - h - 1), wbmpBytesPerLine);
         bmpBytesPointer += bmpBytesPerLine;
     }
     return bmpFileSize;
 }
 
+@implementation WBMPHelper
+
++ (NSUInteger)convertWBMP:(const Byte *)wbmpBytes toBMP:(Byte *)bmpBytes {
+    return convertWbmp2Bmp(wbmpBytes, bmpBytes);
+}
+
 + (NSUInteger)convertWBMP:(const Byte *)wbmpBytes toBMP:(Byte *)bmpBytes scale:(NSUInteger)scale {
-    
-    return convertWbmp2bmp(wbmpBytes, bmpBytes, scale);
+    return convertWbmp2ScaledBmp(wbmpBytes, bmpBytes, scale);
 }
 
 + (NSData *)BMPDataFromWBMPData:(NSData *)wbmpData scale:(NSUInteger)scale {
@@ -148,16 +160,18 @@ unsigned long convertWbmp2bmp(const Byte *wbmpBytes, Byte *bmpBytes, unsigned lo
     NSUInteger bmpBytesLength = 0;
     if (scale == 1) {
         //  不放大时有优化的转换方法，得到的bmp也会相对较小一些
-        bmpBytesLength = [WBMPHelper convertWBMP:wbmpBytes toBMP:bmpBytes];
-    } else {
-        bmpBytesLength = convertWbmp2bmp(wbmpBytes, bmpBytes, scale);
+        bmpBytesLength = convertWbmp2Bmp(wbmpBytes, bmpBytes);
+    }
+    else {
+        bmpBytesLength = convertWbmp2ScaledBmp(wbmpBytes, bmpBytes, scale);
     }
     
-    NSData *bmpData = nil;
-    if (bmpBytesLength) {
-        bmpData = [NSData dataWithBytes:bmpBytes length:bmpBytesLength];
+    if (!bmpBytesLength) {
+        free(bmpBytes);
+        return nil;
     }
-    free(bmpBytes);
+    
+    NSData *bmpData = [NSData dataWithBytesNoCopy:bmpBytes length:bmpBytesLength freeWhenDone:YES];
     
     return bmpData;
 }
